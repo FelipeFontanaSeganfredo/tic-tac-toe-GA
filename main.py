@@ -6,6 +6,7 @@ from individuo import Individuo
 from crossover import Crossover
 from torneio import Torneio
 from copy import deepcopy
+import matplotlib.pyplot as plt
 
 def avaliar_individuo_paralelo(individuo, populacao_para_jogar, n_partidas, tabuleiro):
     """Função auxiliar para avaliar um indivíduo em paralelo."""
@@ -29,58 +30,37 @@ def salvar_resultados(individuos, caminho_arquivo="resultados.txt"):
         for i, ind in enumerate(individuos, 1):
             f.write(f"Indivíduo {i}: Genes = {ind.genes}\n")
 
-def carregar_populacao(caminho_arquivo, tamanho_populacao, tabuleiro):
-    """
-    Carrega indivíduos de um arquivo de resultados para semear a nova geração.
-    Se o arquivo não existir, retorna uma lista vazia.
-    """
-    if not os.path.exists(caminho_arquivo):
-        print(f"Aviso: Arquivo '{caminho_arquivo}' não encontrado. Iniciando com população aleatória.")
-        return []
-
-    populacao_carregada = []
-    with open(caminho_arquivo, "r") as f:
-        linhas = f.readlines()
+def simular_desempenho(individuo, num_simulacoes, tabuleiro):
+    """Simula jogos do indivíduo contra oponentes aleatórios e retorna os resultados."""
+    vitorias = 0
+    empates = 0
+    derrotas = 0
+    
+    for _ in range(num_simulacoes):
+        adversario_aleatorio = Individuo(tabuleiro)
+        vencedor = Torneio.competir(individuo, adversario_aleatorio, tabuleiro)
         
-        # Limita o número de indivíduos para não exceder o tamanho da população
-        linhas_a_usar = linhas[:tamanho_populacao]
-
-        for linha in linhas_a_usar:
-            try:
-                # Extrai apenas a parte dos genes da string
-                genes_str = linha.split("Genes = ")[1].strip()
-                # Converte a string de lista em uma lista de inteiros
-                genes = [int(g) for g in genes_str[1:-1].split(',')]
-                
-                # Cria um novo indivíduo com os genes lidos
-                novo_individuo = Individuo(tabuleiro)
-                novo_individuo.genes = genes
-                novo_individuo.fitness = 0  # Reseta o fitness para a nova avaliação
-                populacao_carregada.append(novo_individuo)
-            except Exception as e:
-                print(f"Erro ao ler linha: {linha.strip()} -> {e}")
-                
-    return populacao_carregada
+        if vencedor == individuo:
+            vitorias += 1
+        elif vencedor == adversario_aleatorio:
+            derrotas += 1
+        else:
+            empates += 1
+            
+    return vitorias, empates, derrotas
 
 def main():
     # --- Parâmetros ---
-    tamanho_populacao = 10000
-    num_geracoes = 10
-    taxa_mutacao = 0.04
+    tamanho_populacao = 1000
+    num_geracoes = 400
+    taxa_mutacao = 0.10
     elitismo = True
-    n_partidas = 5  # Número de partidas para avaliar o fitness de cada indivíduo
+    n_partidas = 30
+    historico_fitness = []
     
     # --- Inicialização ---
     tab = Tabuleiro()
-    
-    # Tenta carregar a população a partir de um arquivo
-    populacao = carregar_populacao("resultados/resultados_finais.txt", tamanho_populacao, tab)
-    
-    # Se o carregamento falhar ou o arquivo estiver vazio, cria uma nova população aleatória
-    if not populacao:
-        populacao = [Individuo(tab) for _ in range(tamanho_populacao)]
-    else:
-        print(f"População inicial de {len(populacao)} indivíduos carregada com sucesso do arquivo.")
+    populacao = [Individuo(tab) for _ in range(tamanho_populacao)]
     
     torneio = Torneio(
         populacao=populacao,
@@ -115,8 +95,9 @@ def main():
         populacao = nova_populacao
         torneio.populacao = populacao
         
-        # Opcional: Mostra o progresso
+        # Opcional: Mostra o progresso e salva no histórico
         melhor_individuo = max(populacao, key=lambda ind: ind.fitness)
+        historico_fitness.append((geracao + 1, melhor_individuo.fitness))
         print(f"Geração {geracao + 1}/{num_geracoes}, Melhor Fitness: {melhor_individuo.fitness}")
 
     # Encontra e imprime o melhor indivíduo da última geração
@@ -128,6 +109,60 @@ def main():
     print("\nAlgoritmo concluído. Salvando resultados...")
     salvar_resultados(populacao, "resultados/resultados_finais.txt")
     print("Resultados salvos em 'resultados/resultados_finais.txt'")
+
+    # --- Plotagem da evolução do Fitness ---
+    geracoes_plot = [item[0] for item in historico_fitness]
+    fitness_plot = [item[1] for item in historico_fitness]
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(geracoes_plot, fitness_plot, color='blue', linewidth=2)
+    plt.title('Evolução do Melhor Fitness por Geração')
+    plt.xlabel('Geração')
+    plt.ylabel('Fitness')
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+    # --- Simulação e Plotagem de Desempenho ---
+    print("\nIniciando simulação de 10000 jogos para comparação...")
+    
+    num_simulacoes = 10000
+    
+    # Simula o desempenho do melhor indivíduo do GA
+    vitorias_ga, empates_ga, derrotas_ga = simular_desempenho(melhor_individuo_final, num_simulacoes, tab)
+    
+    # Simula o desempenho de um indivíduo aleatório
+    individuo_aleatorio = Individuo(tab)
+    vitorias_rand, empates_rand, derrotas_rand = simular_desempenho(individuo_aleatorio, num_simulacoes, tab)
+
+    # Prepara os dados para o gráfico
+    labels = ['Vitórias', 'Empates', 'Derrotas']
+    resultados_ga = [vitorias_ga, empates_ga, derrotas_ga]
+    resultados_rand = [vitorias_rand, empates_rand, derrotas_rand]
+
+    x = range(len(labels))
+    width = 0.35
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+    rects1 = ax.bar(x, resultados_ga, width, label='Algoritmo Genético', color='skyblue')
+    rects2 = ax.bar([p + width for p in x], resultados_rand, width, label='Estratégia Aleatória', color='coral')
+
+    ax.set_ylabel('Número de Jogos')
+    ax.set_title('Comparação de Desempenho: GA vs. Aleatório')
+    ax.set_xticks([p + width / 2 for p in x])
+    ax.set_xticklabels(labels)
+    ax.legend()
+    ax.grid(axis='y', linestyle='--', alpha=0.7)
+    
+    plt.tight_layout()
+    plt.show()
+
+    print("\n--- Resultados Finais das Simulações ---")
+    print("Desempenho do Melhor Indivíduo (GA):")
+    print(f"Vitórias: {vitorias_ga}, Empates: {empates_ga}, Derrotas: {derrotas_ga}")
+    print("\nDesempenho de uma Estratégia Aleatória:")
+    print(f"Vitórias: {vitorias_rand}, Empates: {empates_rand}, Derrotas: {derrotas_rand}")
+
 
 if __name__ == "__main__":
     main()

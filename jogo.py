@@ -20,14 +20,13 @@ class Jogo:
         """Executa o jogo até alguém vencer ou não restarem jogadas.
            Retorna 0 para empate, 1 se gene1 venceu, 2 se gene2 venceu.
         """
-        idx1, idx2 = 0, 0  # ponteiros nos genes
+        idx1, idx2 = 0, 0 
         while self.jogadas_restantes > 0:
             if self.jogador_atual == 1:
                 jogador, genes, simbolo, idx = self.gene1, self.gene1.genes, "X", idx1
             else:
                 jogador, genes, simbolo, idx = self.gene2, self.gene2.genes, "O", idx2
 
-            # tenta jogar na primeira posição disponível do gene
             while idx < len(genes):
                 linha, coluna = self.posicao_para_linha_coluna(genes[idx])
                 if self.tabuleiro.tabuleiro[linha][coluna] == " ":
@@ -73,9 +72,20 @@ class Jogo:
 
     def atualizar_fitness(self, vencedor: int):
         """Atualiza o fitness dos indivíduos conforme o resultado do jogo."""
+        """""
         if vencedor == 1:
-            self.gene1.fitness += 1
-            self.gene2.fitness -= 1
+            self.gene1.fitness +=1
+            self.gene2.fitness -=1
+        if vencedor == 2:
+            self.gene2.fitness +=1
+            self.gene1.fitness -=1
+        """
+        if vencedor == 1:
+            self.gene1.fitness += 2
+            self.gene2.fitness -= 0
         elif vencedor == 2:
+            self.gene2.fitness += 2
+            self.gene1.fitness -= 0
+        else:
+            self.gene1.fitness += 1
             self.gene2.fitness += 1
-            self.gene1.fitness -= 1
